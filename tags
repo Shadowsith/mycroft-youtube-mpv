@@ -1,0 +1,13 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_OUTPUT_MODE	u-ctags	/u-ctags or e-ctags/
+!_TAG_PROGRAM_AUTHOR	Universal Ctags Team	//
+!_TAG_PROGRAM_NAME	Universal Ctags	/Derived from Exuberant Ctags/
+!_TAG_PROGRAM_URL	https://ctags.io/	/official site/
+!_TAG_PROGRAM_VERSION	0.0.0	/7918d19f/
+YoutubeMpvSkill	__init__.py	/^class YoutubeMpvSkill(MycroftSkill):$/;"	c
+__init__	__init__.py	/^    def __init__(self):$/;"	m	class:YoutubeMpvSkill
+__mycroft_skill_firstrun	settings.json	/^{"__mycroft_skill_firstrun": false}/;"	b
+create_skill	__init__.py	/^def create_skill():$/;"	f
+getResults	__init__.py	/^    def getResults(self, search, pos=0):$/;"	m	class:YoutubeMpvSkill
+handle_youtubempv_intent	__init__.py	/^    def handle_youtubempv_intent(self, message):$/;"	m	class:YoutubeMpvSkill
