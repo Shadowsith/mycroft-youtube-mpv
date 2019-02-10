@@ -6,13 +6,15 @@ Coming soon..
 
 ## Examples 
 * "Youtube arianna grande 7 rings" -- plays first result
-* "Youtube cancel" -- stops playing
+* "Youtube cancel|exit" -- stops playing
+* "Youtube pause|wait" -- pause playing
+* "Youtube resume|play" -- resume playing
+* "Youtube volume up|down|20" -- set volume up, down, to number from 0 - 100
 
 ## TODO
 * Playing more than first search result
-* Pause/resume while playing (via <code>echo '{ "command": ["set_property", "pause", true]
-  }' | socat - /tmp/mpvsocket</code>)
-* Set volume while playing
+* Playing yt playlists
+* rewind, forward in video
 
 ## Credits 
 Philip Mayer
