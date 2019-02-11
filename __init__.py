@@ -21,6 +21,7 @@
 # OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import subprocess
+import json
 import urllib.request
 from bs4 import BeautifulSoup
 from adapt.intent import IntentBuilder
@@ -42,9 +43,22 @@ class YoutubeMpvSkill(MycroftSkill):
         self.mpv_start = "mpv --volume={}\
             --input-ipc-server=/tmp/mpvsocket {} &"
         self.pause_state = "true"
+
+        # if you want add more options use the mpv manpages
         self.mpv_echo = "echo '{}' | socat - /tmp/mpvsocket"
+
+        # setter for unix socket
         self.mpv_pause = '"command": ["set_property", "pause", {}]'
         self.mpv_volume = '"command": ["set_property", "volume", {}]'
+        self.mpv_speed = '"command": ["set_property", "speed", {}]'
+        self.mpv_seek = '"command": [ "seek", "{}" ]'
+
+        # getter from unix socket
+        self.mpv_duration = '"command": ["get_property", "duration"]'
+        self.mpv_time_pos = '"command": ["get_property", "time-pos"]'
+        self.mpv_time_remaining = '"command": ["get_property", \
+            "time-remaining"]'
+
         self.mpv_stop = "killall mpv"
 
     def getResults(self, search, pos=0):
@@ -94,6 +108,29 @@ class YoutubeMpvSkill(MycroftSkill):
         self.volume = volume
         cmd = self.mpv_echo.format("{" + self.mpv_volume.format(volume) + "}")
         subprocess.call(cmd, shell=True)
+
+    # def mpvSeek(self, secs):
+
+    # def mpvSpeed(self, secs):
+
+    def getDuration(self):
+        cmd = self.mpv_echo.format("{" + self.mpv_duration + "}")
+        data = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                shell=True).stdout.read()
+        j = json.loads(data)
+        self.speak_dialog(str(j["data"]))
+
+    def getPosition(self):
+        cmd = self.mpv_echo.format("{" + self.mpv_time_pos + "}")
+        data = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                shell=True).stdout.read()
+        return data["data"]
+
+    def getRemaining(self):
+        cmd = self.mpv_echo.format("{" + self.mpv_time_remaining + "}")
+        data = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                shell=True).stdout.read()
+        return data["data"]
 
     @intent_handler(IntentBuilder("").require("YoutubeMpv"))
     def handle_youtubempv_intent(self, message):
