@@ -20,7 +20,7 @@ It also checks if mpv is running to avoid not wanted simultaneous mpv sessions.
 * "Youtube get speed" -- get current speed
 * "Youtube seek forward|backward|num" -- seek for/backward or with integer num (+/-)
 
-## Supported plattfors
+## Supported plattforms
 * Linux Desktop (KDE)
 
 ## TODO
