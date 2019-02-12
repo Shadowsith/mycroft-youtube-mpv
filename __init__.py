@@ -43,6 +43,7 @@ class YoutubeMpvSkill(MycroftSkill):
         self.mpv_start = "mpv --volume={}\
             --input-ipc-server=/tmp/mpvsocket {} &"
         self.pause_state = "true"
+        self.mpv_process = "ps cax | grep mpv"
 
         # if you want add more options use the mpv manpages
         self.mpv_echo = "echo '{}' | socat - /tmp/mpvsocket"
@@ -58,6 +59,8 @@ class YoutubeMpvSkill(MycroftSkill):
         self.mpv_time_pos = '"command": ["get_property", "time-pos"]'
         self.mpv_time_remaining = '"command": ["get_property", \
             "time-remaining"]'
+        self.mpv_get_volume = '"command": ["get_property", "volume"]'
+        self.mpv_get_speed = '"command": ["get_property", "speed"]'
 
         self.mpv_stop = "killall mpv"
 
@@ -81,11 +84,24 @@ class YoutubeMpvSkill(MycroftSkill):
         else:
             return False
 
+    def isMpvRunning(self):
+        exists = subprocess.Popen(self.mpv_process,
+                                  stdout=subprocess.PIPE,
+                                  shell=True).stdout.read()
+        exists = exists.decode("utf-8")
+
+        if(exists == '' or exists is None):
+            return False
+        else:
+            return True
+
     def mpvStart(self):
-        subprocess.call(self.mpv_start
-                        .format(self.volume, self.url), shell=True)
-        self.speak_dialog("ytmpv.start", data={"search": self.search})
-        self.pause_state = "true"
+        if(not self.isMpvRunning()):
+            subprocess.call(self.mpv_start
+                            .format(self.volume, self.url), shell=True)
+            self.speak_dialog("ytmpv.start", data={"search": self.search})
+        else:
+            self.speak_dialog("ytmpv.running")
 
     def mpvPause(self, state):
         self.pause_state = state
@@ -95,6 +111,7 @@ class YoutubeMpvSkill(MycroftSkill):
 
     def mpvStop(self):
         subprocess.call("killall mpv", shell=True)
+        subprocess.call("rm /tmp/mpvsocket", shell=True)
         self.speak_dialog("ytmpv.stop",
                           data={"search": self.search})
         self.pause_state = "true"
@@ -109,33 +126,75 @@ class YoutubeMpvSkill(MycroftSkill):
         cmd = self.mpv_echo.format("{" + self.mpv_volume.format(volume) + "}")
         subprocess.call(cmd, shell=True)
 
-    # def mpvSeek(self, secs):
+    def mpvChangeSpeed(self, speed):
+        if (speed <= 0):
+            speed = 0
+        elif(speed >= 5):
+            speed = 5
 
-    # def mpvSpeed(self, secs):
+        self.speed = speed
+        cmd = self.mpv_echo.format("{" + self.mpv_speed.format(speed) + "}")
+        subprocess.call(cmd, shell=True)
+
+    def mpvSeek(self, secs):
+        cmd = self.mpv_echo.format("{" + self.mpv_seek.format(secs) + "}")
+        subprocess.call(cmd, shell=True)
 
     def getDuration(self):
-        cmd = self.mpv_echo.format("{" + self.mpv_duration + "}")
-        data = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                shell=True).stdout.read()
-        j = json.loads(data)
-        self.speak_dialog(str(j["data"]))
+        if(self.isMpvRunning()):
+            cmd = self.mpv_echo.format("{" + self.mpv_duration + "}")
+            data = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                    shell=True).stdout.read()
+            j = json.loads(data)
+            secs = int(str(j["data"]).split(".")[0])
+            m = int(secs/60)
+            rest = secs % 60
+            self.speak_dialog("ytmpv.duration",
+                              data={"min": m, "sec": rest})
 
     def getPosition(self):
         cmd = self.mpv_echo.format("{" + self.mpv_time_pos + "}")
         data = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                 shell=True).stdout.read()
-        return data["data"]
+        j = json.loads(data)
+        secs = int(str(j["data"]).split(".")[0])
+        m = int(secs/60)
+        rest = secs % 60
+        self.speak_dialog("ytmpv.position",
+                          data={"min": m, "sec": rest})
 
     def getRemaining(self):
         cmd = self.mpv_echo.format("{" + self.mpv_time_remaining + "}")
         data = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                 shell=True).stdout.read()
-        return data["data"]
+        j = json.loads(data)
+        secs = int(str(j["data"]).split(".")[0])
+        m = int(secs/60)
+        rest = secs % 60
+        self.speak_dialog("ytmpv.remaining",
+                          data={"min": m, "sec": rest})
 
-    @intent_handler(IntentBuilder("").require("YoutubeMpv"))
+    def getVolume(self):
+        cmd = self.mpv_echo.format('{' + self.mpv_get_volume + '}')
+        data = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                shell=True).stdout.read()
+        j = json.loads(data)
+        vol = str(j["data"]).split('.')[0]
+        self.speak_dialog("ytmpv.volume", data={"vol": vol})
+
+    def getSpeed(self):
+        cmd = self.mpv_echo.format('{' + self.mpv_get_speed + '}')
+        data = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                shell=True).stdout.read()
+        j = json.loads(data)
+        num = str(j["data"]).split(".")[0]
+        point = str(j["data"]).split(".")[1]
+        self.speak_dialog("ytmpv.get.speed", data={"num": num, "point": point})
+
+    @intent_handler(IntentBuilder("").require("Start"))
     def handle_youtubempv_intent(self, message):
         try:
-            cmd = str(message.data.get('YoutubeMpv'))
+            cmd = str(message.data.get('Start'))
             msg = str(message.data.get('utterance')).replace(cmd+" ", "", 1)
             if(self.mpvExists()):
                 # TODO adding translations in voc
@@ -148,7 +207,7 @@ class YoutubeMpvSkill(MycroftSkill):
             LOG.exception("YoutubeMpv Error: " + e.message)
             self.speak_dialog("ytmpv.error")
 
-    @intent_handler(IntentBuilder("").require("YoutubeMpvPause"))
+    @intent_handler(IntentBuilder("").require("Pause"))
     def handle_youtubempv_pause_intent(self, message):
         try:
             if(self.mpvExists()):
@@ -157,7 +216,7 @@ class YoutubeMpvSkill(MycroftSkill):
             LOG.exception("YoutubeMpv Error: " + e.message)
             self.speak_dialog("ytmpv.error")
 
-    @intent_handler(IntentBuilder("").require("YoutubeMpvPlay"))
+    @intent_handler(IntentBuilder("").require("Resume"))
     def handle_youtubempv_play_intent(self, message):
         try:
             if(self.mpvExists()):
@@ -168,7 +227,7 @@ class YoutubeMpvSkill(MycroftSkill):
             LOG.exception("YoutubeMpv Error: " + e.message)
             self.speak_dialog("ytmpv.error")
 
-    @intent_handler(IntentBuilder("").require("YoutubeMpvExit"))
+    @intent_handler(IntentBuilder("").require("Exit"))
     def handle_youtubempv_exit_intent(self, message):
         try:
             if(self.mpvExists()):
@@ -179,23 +238,168 @@ class YoutubeMpvSkill(MycroftSkill):
             LOG.exception("YoutubeMpv Error: " + e.message)
             self.speak_dialog("ytmpv.error")
 
-    @intent_handler(IntentBuilder("").require("YoutubeMpvVolume"))
+    @intent_handler(IntentBuilder("").require("Volume"))
     def handle_youtubempv_volume_intent(self, message):
         try:
             if(self.mpvExists()):
                 msg = str(message.data.get("utterance")).split(" ")[2]
-                self.speak_dialog(msg)
-                if(msg == 'up'):
-                    self.mpvChangeVol(self.volume+10)
-
-                elif(msg == 'down'):
-                    self.mpvChangeVol(self.volume-10)
-
-                elif(msg != ''):
+                if(msg != ''):
                     num = int(msg)
                     self.mpvChangeVol(num)
             else:
                 self.speak_dialog("ytmpv.not.exists")
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("VolumeDown"))
+    def handle_youtubempv_volume_down_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                self.mpvChangeVol(self.volume-10)
+            else:
+                self.speak_dialog("ytmpv.not.exists")
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("VolumeUp"))
+    def handle_youtubempv_volume_up_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                self.mpvChangeVol(self.volume+10)
+            else:
+                self.speak_dialog("ytmpv.not.exists")
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("Speed"))
+    def handle_youtubempv_speed_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                msg = str(message.data.get("utterance")).split(" ")[2]
+                if(msg != ''):
+                    num = float(msg)
+                    self.mpvChangeSpeed(num)
+            else:
+                self.speak_dialog("ytmpv.not.exists")
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("SpeedDown"))
+    def handle_youtubempv_speed_down_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                self.mpvChangeSpeed(self.speed-0.2)
+            else:
+                self.speak_dialog("ytmpv.not.exists")
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("SpeedUp"))
+    def handle_youtubempv_speed_up_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                self.mpvChangeSpeed(self.volume+0.2)
+            else:
+                self.speak_dialog("ytmpv.not.exists")
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("Seek"))
+    def handle_youtubempv_seek_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                msg = str(message.data.get("utterance")).split(" ")[2]
+                if(msg != ''):
+                    secs = int(msg)
+                    self.mpvSeek(secs)
+                # self.mpvChangeSpeed(self.volume+0.2)
+            else:
+                self.speak_dialog("ytmpv.not.exists")
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("SeekForward"))
+    def handle_youtubempv_seek_forward_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                msg = str(message.data.get("utterance")).split(" ")[3]
+                if(msg != ''):
+                    secs = int(msg)
+                    self.mpvSeek(secs)
+                else:
+                    self.mpvSeek(20)
+                # self.mpvChangeSpeed(self.volume+0.2)
+            else:
+                self.speak_dialog("ytmpv.not.exists")
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("SeekBackward"))
+    def handle_youtubempv_seek_backward_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                msg = str(message.data.get("utterance")).split(" ")[3]
+                if(msg != ''):
+                    secs = int(msg)*-1
+                    self.mpvSeek(secs)
+                else:
+                    self.mpvSeek(-20)
+                # self.mpvChangeSpeed(self.volume+0.2)
+            else:
+                self.speak_dialog("ytmpv.not.exists")
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("GetDuration"))
+    def handle_youtubempv_get_duration_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                self.getDuration()
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("GetPosition"))
+    def handle_youtubempv_get_position_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                self.getPosition()
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("GetRemaining"))
+    def handle_youtubempv_get_remaining_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                self.getRemaining()
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("GetSpeed"))
+    def handle_youtubempv_get_speed_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                self.getSpeed()
+        except Exception as e:
+            LOG.exception("YoutubeMpv Error: " + e.message)
+            self.speak_dialog("ytmpv.error")
+
+    @intent_handler(IntentBuilder("").require("GetVolume"))
+    def handle_youtubempv_get_volume_intent(self, message):
+        try:
+            if(self.mpvExists()):
+                self.getVolume()
         except Exception as e:
             LOG.exception("YoutubeMpv Error: " + e.message)
             self.speak_dialog("ytmpv.error")
