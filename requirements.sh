@@ -17,9 +17,9 @@ dist=$(lsb_release -ds)
     pm="pkcon"
 else
     priv="sudo"
-    if [ "$dist"  == "\"Arch Linux\""  ]; then
+    if [[ "$dist"  == "\"Arch Linux\""  ]] || [[ "$dist" == "\"Manjaro Linux\"" ]]; then
         pm="pacman -S"
-        dependencies=( "mpv" )
+        dependencies=( "mpv youtube-dl" )
     elif [[ "$dist" =~  "Ubuntu" ]] || [[ "$dist" =~ "Debian" ]] ||[[ "$dist" =~ "Raspbian" ]]; then
         pm="apt install"
         dependencies=( "mpv" )
